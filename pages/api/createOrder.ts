@@ -41,14 +41,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
     );
 
-    if (response.data && response.data.payment_link) {
-      res.status(200).json({ paymentLink: response.data.payment_link });
+    const sessionId = response.data.payment_session_id;
+
+    if (sessionId) {
+      const paymentLink = `https://www.cashfree.com/checkout/post/pg?payment_session_id=${sessionId}`;
+      res.status(200).json({ paymentLink });
     } else {
-      console.error("Unexpected response from Cashfree:", response.data);
-      res.status(500).json({ error: "Payment link not found", response: response.data });
+      console.error("Session ID not found in Cashfree response:", response.data);
+      res.status(500).json({ error: "Session ID not found", data: response.data });
     }
   } catch (err: any) {
-    console.error("Cashfree API error:", err?.response?.data || err.message);
+    console.error("Cashfree error:", err?.response?.data || err.message);
     res.status(500).json({ error: "Order creation failed", message: err.message });
   }
 }
