@@ -43,10 +43,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const sessionId = response.data.payment_session_id;
 
-    if (sessionId) {
-      // ✅ Correct checkout link
-      const paymentLink = `https://payments.cashfree.com/pg/checkout?payment_session_id=${sessionId}`;
-      res.status(200).json({ paymentLink });
+if (sessionId) {
+  const paymentLink = `https://payments.cashfree.com/pg/checkout?payment_session_id=${sessionId}`;
+  res.status(200).json({ paymentLink });
+});
     } else {
       console.error("No session_id:", response.data);
       res.status(500).json({ error: "Session ID not found", data: response.data });
