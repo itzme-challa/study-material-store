@@ -6,30 +6,35 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
+  // Validate environment variables
+  if (!process.env.CASHFREE_APP_ID || !process.env.CASHFREE_SECRET_KEY) {
+    console.error('Cashfree credentials not configured');
+    return res.status(500).json({ error: 'Payment gateway not configured' });
+  }
+
   try {
     const { productId, amount, customerName, customerEmail, customerPhone } = req.body;
 
-    // Validate input
+    // Strict validation
     if (!productId || !amount || !customerName || !customerEmail || !customerPhone) {
-      return res.status(400).json({ error: 'Missing required fields' });
+      return res.status(400).json({ error: 'All fields are required' });
     }
 
     if (!/^[6-9]\d{9}$/.test(customerPhone)) {
-      return res.status(400).json({ error: 'Invalid phone number' });
+      return res.status(400).json({ error: 'Invalid Indian phone number' });
     }
 
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customerEmail)) {
       return res.status(400).json({ error: 'Invalid email address' });
     }
 
-    const orderId = `ORDER_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+    const orderId = `ORDER_${Date.now()}_${crypto.randomBytes(2).toString('hex')}`;
     const baseUrl = process.env.NEXT_PUBLIC_BASE_URL;
 
     const orderData = {
       order_id: orderId,
-      order_amount: amount,
+      order_amount: parseFloat(amount).toFixed(2),
       order_currency: 'INR',
-      order_note: `Purchase of ${productId}`,
       customer_details: {
         customer_id: customerEmail,
         customer_name: customerName,
@@ -40,23 +45,46 @@ export default async function handler(req, res) {
         return_url: `${baseUrl}/payment-success?order_id=${orderId}&product_id=${productId}`,
         notify_url: `${baseUrl}/api/payment-webhook`,
       },
+      order_note: `Purchase of ${productId}`,
     };
 
-    const response = await axios.post(`${process.env.CASHFREE_API_URL}/orders`, orderData, {
-      headers: {
-        'x-client-id': process.env.CASHFREE_APP_ID,
-        'x-client-secret': process.env.CASHFREE_SECRET_KEY,
-        'x-api-version': '2022-09-01',
-        'Content-Type': 'application/json',
-      },
+    const cashfreeResponse = await axios.post(
+      'https://api.cashfree.com/pg/orders',
+      orderData,
+      {
+        headers: {
+          'x-client-id': process.env.CASHFREE_APP_ID,
+          'x-client-secret': process.env.CASHFREE_SECRET_KEY,
+          'x-api-version': '2022-09-01',
+          'Content-Type': 'application/json',
+        },
+        timeout: 10000, // 10 second timeout
+      }
+    );
+
+    if (!cashfreeResponse.data.payment_link) {
+      throw new Error('No payment link received from Cashfree');
+    }
+
+    return res.status(200).json({
+      order_id: orderId,
+      payment_link: cashfreeResponse.data.payment_link,
     });
 
-    res.status(200).json({
-      order_id: orderId,
-      payment_link: response.data.payment_link,
-    });
   } catch (error) {
-    console.error('Order creation error:', error.response?.data || error.message);
-    res.status(500).json({ error: 'Failed to create order' });
+    console.error('Cashfree API Error:', {
+      message: error.message,
+      response: error.response?.data,
+      stack: error.stack,
+    });
+
+    const errorMessage = error.response?.data?.message || 
+                        error.message || 
+                        'Payment initiation failed';
+
+    return res.status(500).json({ 
+      error: errorMessage,
+      details: error.response?.data?.details || null,
+    });
   }
 }
