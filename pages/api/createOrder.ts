@@ -5,13 +5,14 @@ const CASHFREE_APP_ID = process.env.CASHFREE_APP_ID!;
 const CASHFREE_SECRET_KEY = process.env.CASHFREE_SECRET_KEY!;
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== "POST")
+  if (req.method !== "POST") {
     return res.status(405).json({ error: "Only POST requests allowed" });
+  }
 
   const { productName, amount, link } = req.body;
 
   try {
-    // STEP 1: Get access token
+    // 1. Get Access Token from Cashfree Production
     const tokenRes = await axios.post(
       "https://api.cashfree.com/pg/auth/token",
       {},
@@ -26,8 +27,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const accessToken = tokenRes.data.data.token;
 
-    // STEP 2: Create order
+    // 2. Create Order
     const orderId = `order_${Date.now()}`;
+    const returnUrl = `https://study-material-store-seven.vercel.app/success?link=${encodeURIComponent(
+      link
+    )}&order_id=${orderId}`;
 
     const orderRes = await axios.post(
       "https://api.cashfree.com/pg/orders",
@@ -42,9 +46,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           customer_phone: "9999999999",
         },
         order_meta: {
-          return_url: `https://study-material-store-seven.vercel.app/success?link=${encodeURIComponent(
-            link
-          )}&order_id={order_id}`,
+          return_url: returnUrl,
         },
       },
       {
@@ -57,16 +59,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     );
 
     const sessionId = orderRes.data.payment_session_id;
-
-    if (!sessionId) {
-      console.error("Missing session ID:", orderRes.data);
-      return res.status(500).json({ error: "Payment session not found" });
-    }
-
     const paymentLink = `https://payments.cashfree.com/pg/checkout?payment_session_id=${sessionId}`;
+
     res.status(200).json({ paymentLink });
-  } catch (err: any) {
-    console.error("Error creating order:", err);
-    res.status(500).json({ error: "Something went wrong", details: err.message });
+  } catch (error: any) {
+    console.error("Error creating order:", error.response?.data || error.message);
+    res.status(500).json({ error: "Failed to create Cashfree order", details: error.message });
   }
 }
