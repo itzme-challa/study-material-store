@@ -6,6 +6,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const { name, price, link } = req.body;
 
+  if (!name || !price || !link) {
+    return res.status(400).json({ error: "Missing product data" });
+  }
+
   const orderId = "order_" + Date.now();
   const callbackUrl = `${process.env.NEXT_PUBLIC_BASE_URL}/success?link=${encodeURIComponent(link)}`;
 
@@ -37,8 +41,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
     );
 
-    res.status(200).json({ paymentLink: response.data.payment_link });
-  } catch (err) {
-    res.status(500).json({ error: "Order creation failed" });
+    if (response.data && response.data.payment_link) {
+      res.status(200).json({ paymentLink: response.data.payment_link });
+    } else {
+      res.status(500).json({ error: "Payment link not found in response", data: response.data });
+    }
+  } catch (err: any) {
+    res.status(500).json({ error: "Order creation failed", message: err.message });
   }
 }
