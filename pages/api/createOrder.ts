@@ -3,17 +3,17 @@ import axios from "axios";
 
 const CASHFREE_APP_ID = process.env.CASHFREE_APP_ID!;
 const CASHFREE_SECRET_KEY = process.env.CASHFREE_SECRET_KEY!;
-const CASHFREE_BASE_URL = "https://api.cashfree.com/pg"; // live mode
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== "POST") return res.status(405).json({ error: "Method Not Allowed" });
+  if (req.method !== "POST")
+    return res.status(405).json({ error: "Only POST requests allowed" });
 
   const { productName, amount, link } = req.body;
 
   try {
-    // Get Access Token
+    // STEP 1: Get access token
     const tokenRes = await axios.post(
-      `${CASHFREE_BASE_URL}/auth/token`,
+      "https://api.cashfree.com/pg/auth/token",
       {},
       {
         headers: {
@@ -24,13 +24,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
     );
 
-    const accessToken = tokenRes.data?.data?.token;
-    if (!accessToken) return res.status(500).json({ error: "Failed to get access token" });
+    const accessToken = tokenRes.data.data.token;
 
-    // Create order
+    // STEP 2: Create order
     const orderId = `order_${Date.now()}`;
+
     const orderRes = await axios.post(
-      `${CASHFREE_BASE_URL}/orders`,
+      "https://api.cashfree.com/pg/orders",
       {
         order_id: orderId,
         order_amount: amount,
@@ -56,18 +56,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
     );
 
-    const sessionId = orderRes.data?.payment_session_id;
+    const sessionId = orderRes.data.payment_session_id;
 
     if (!sessionId) {
-      console.error("Unexpected response from Cashfree:", orderRes.data);
-      return res.status(500).json({ error: "Payment session ID not found" });
+      console.error("Missing session ID:", orderRes.data);
+      return res.status(500).json({ error: "Payment session not found" });
     }
 
     const paymentLink = `https://payments.cashfree.com/pg/checkout?payment_session_id=${sessionId}`;
-
-    return res.status(200).json({ paymentLink });
-  } catch (err) {
+    res.status(200).json({ paymentLink });
+  } catch (err: any) {
     console.error("Error creating order:", err);
-    return res.status(500).json({ error: "Internal Server Error" });
+    res.status(500).json({ error: "Something went wrong", details: err.message });
   }
 }
