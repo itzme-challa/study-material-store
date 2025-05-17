@@ -22,16 +22,28 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
 
   const handleBuy = async (product: any) => {
-    setLoading(true);
+  setLoading(true);
+  try {
     const res = await fetch("/api/createOrder", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(product),
     });
-
     const data = await res.json();
-    window.location.href = data.paymentLink;
-  };
+
+    if (data.paymentLink) {
+      window.location.href = data.paymentLink;
+    } else {
+      alert("Error: " + data.error);
+      console.error("Response data:", data);
+    }
+  } catch (error) {
+    alert("An error occurred");
+    console.error(error);
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <div className="p-4 max-w-xl mx-auto">
