@@ -7,7 +7,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const { name, price, link } = req.body;
 
   if (!name || !price || !link) {
-    return res.status(400).json({ error: "Missing product data" });
+    return res.status(400).json({ error: "Missing required fields" });
   }
 
   const orderId = "order_" + Date.now();
@@ -17,15 +17,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const response = await axios.post(
       "https://api.cashfree.com/pg/orders",
       {
+        order_id: orderId,
+        order_amount: Number(price),
+        order_currency: "INR",
         customer_details: {
           customer_id: orderId,
+          customer_name: name,
           customer_email: "test@example.com",
           customer_phone: "9999999999",
         },
-        order_id: orderId,
-        order_amount: price,
-        order_currency: "INR",
-        order_note: name,
         order_meta: {
           return_url: callbackUrl + "&order_id={order_id}",
         },
@@ -44,9 +44,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (response.data && response.data.payment_link) {
       res.status(200).json({ paymentLink: response.data.payment_link });
     } else {
-      res.status(500).json({ error: "Payment link not found in response", data: response.data });
+      console.error("Unexpected response from Cashfree:", response.data);
+      res.status(500).json({ error: "Payment link not found", response: response.data });
     }
   } catch (err: any) {
+    console.error("Cashfree API error:", err?.response?.data || err.message);
     res.status(500).json({ error: "Order creation failed", message: err.message });
   }
 }
