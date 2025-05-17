@@ -1,63 +1,36 @@
 import crypto from 'crypto';
 
-// Verify webhook signature
-const verifySignature = (signature, body, secret) => {
-  const generatedSignature = crypto
-    .createHmac('sha256', secret)
-    .update(body)
-    .digest('base64');
-  return signature === generatedSignature;
-};
-
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
-    return res.status(405).json({ message: 'Method not allowed' });
+    return res.status(405).json({ error: 'Method not allowed' });
   }
 
   try {
-    const rawBody = JSON.stringify(req.body);
-    const signature = req.headers['x-cf-signature'];
+    const signature = req.headers['x-webhook-signature'];
+    const body = JSON.stringify(req.body);
+    
+    // Verify signature
+    const generatedSignature = crypto
+      .createHmac('sha256', process.env.CASHFREE_SECRET_KEY)
+      .update(body)
+      .digest('base64');
 
-    // Verify webhook signature in production
-    if (process.env.NODE_ENV === 'production') {
-      if (!verifySignature(signature, rawBody, process.env.CASHFREE_WEBHOOK_SECRET)) {
-        console.error('Invalid webhook signature');
-        return res.status(401).json({ error: 'Invalid signature' });
-      }
+    if (signature !== generatedSignature) {
+      return res.status(401).json({ error: 'Invalid signature' });
     }
 
-    const event = req.body;
-    console.log('Payment webhook received:', {
-      orderId: event?.order?.order_id,
-      status: event?.order?.status,
-      amount: event?.order?.order_amount
-    });
+    const { orderId, orderAmount, referenceId, txStatus, paymentMode } = req.body;
 
-    // Handle different payment statuses
-    switch (event?.order?.status) {
-      case 'PAID':
-        // 1. Update database
-        // 2. Send confirmation email
-        // 3. Fulfill order
-        console.log(`Order ${event.order.order_id} paid successfully`);
-        break;
-      
-      case 'FAILED':
-        console.error(`Payment failed for order ${event.order.order_id}`);
-        break;
-      
-      case 'EXPIRED':
-        console.warn(`Order ${event.order.order_id} expired`);
-        break;
+    if (txStatus === 'PAID') {
+      // Here you would typically:
+      // 1. Update your database with the payment status
+      // 2. Trigger delivery (e.g., send email, Telegram message)
+      console.log(`Payment successful for order ${orderId}`);
     }
 
-    return res.status(200).json({ status: 'WEBHOOK_PROCESSED' });
+    res.status(200).json({ status: 'OK' });
   } catch (error) {
-    console.error('Webhook processing error:', {
-      error: error.message,
-      stack: error.stack,
-      body: req.body
-    });
-    return res.status(400).json({ error: 'Webhook processing failed' });
+    console.error('Webhook error:', error);
+    res.status(500).json({ error: 'Webhook processing failed' });
   }
 }
