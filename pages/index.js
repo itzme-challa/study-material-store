@@ -9,7 +9,7 @@ const products = [
   {
     id: 'master-the-ncert-bio-12th',
     name: 'Master the NCERT Biology 12th',
-    price: 299,
+    price: 2,
     description: 'Complete NCERT Class 12 Biology material',
     image: '/products/master-the-ncert-bio-12th.jpg',
     telegramLink: 'https://t.me/Material_eduhubkmrbot'
