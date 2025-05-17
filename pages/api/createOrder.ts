@@ -44,14 +44,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const sessionId = response.data.payment_session_id;
 
     if (sessionId) {
-      const paymentLink = `https://www.cashfree.com/checkout/post/pg?payment_session_id=${sessionId}`;
+      // ✅ Correct checkout link
+      const paymentLink = `https://payments.cashfree.com/pg/checkout?payment_session_id=${sessionId}`;
       res.status(200).json({ paymentLink });
     } else {
-      console.error("Session ID not found in Cashfree response:", response.data);
+      console.error("No session_id:", response.data);
       res.status(500).json({ error: "Session ID not found", data: response.data });
     }
   } catch (err: any) {
-    console.error("Cashfree error:", err?.response?.data || err.message);
+    console.error("Cashfree Error:", err?.response?.data || err.message);
     res.status(500).json({ error: "Order creation failed", message: err.message });
   }
 }
